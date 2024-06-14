@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Biber Festplatte</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+      body {
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #000; /* Optional: To better see the centering */
+      }
+      #gameContainer {
+        width: 1150px;
+        height: 700px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gameContainer"></div>
+    <script type="text/javascript">
+      var config = {
+        type: Phaser.AUTO,
+        width: 1150,
+        height: 700,
+        parent: "gameContainer", // Add this line to attach the game to the div
+        physics: {
+          default: "arcade",
+          arcade: {
+            gravity: { y: 300 },
+            debug: false,
+          },
+        },
+        scene: {
+          preload: preload,
+          create: create,
+          update: update,
+        },
+      };
+
+      var game = new Phaser.Game(config);
+
+      function preload() {
+        this.load.image("sky", "assets/bg.jpg");
+        this.load.image("ground", "assets/log.png");
+        this.load.image("stein1", "assets/stein1.png");
+        this.load.image("stein2", "assets/stein2.png");
+        this.load.image("stein3", "assets/stein3.png");
+        this.load.image("gfn", "assets/gfn.png");
+        this.load.image("star", "assets/star.png");
+        this.load.image("usb", "assets/usb.png");
+        this.load.image("ssd", "assets/ssd.png");
+
+        this.load.image("bomb", "assets/bomb.png");
+        this.load.spritesheet("dude", "assets/dude.png", {
+          frameWidth: 64,
+          frameHeight: 63,
+        });
+      }
+
+      var platforms;
+      var player;
+      var score = 0;
+      var scoreTextDEC;
+      var scoreTextBIN;
+      var scoreTextHEX;
+
+      var stars;
+      var usbs;
+      var ssds;
+      var bombs;
+
+      function create() {
+        this.add.image(400, 300, "sky");
+
+        platforms = this.physics.add.staticGroup();
+
+        platforms.create(400, 700, "ground").setScale(4, 0.5).refreshBody();
+        let drva = platforms
+          .create(300, 400, "ground")
+          .setScale(0.5)
+          .refreshBody();
+
+        let stein1 = platforms
+          .create(900, 400, "stein1")
+          .setScale(1)
+          .refreshBody();
+        let stein2 = platforms
+          .create(120, 270, "stein2")
+          .setScale(1)
+          .refreshBody();
+        let stein3 = platforms
+          .create(750, 200, "stein3")
+          .setScale(1)
+          .refreshBody();
+        let gfn = platforms.create(600, 580, "gfn").setScale(0.5).refreshBody();
+
+        stein1.body.setSize(stein1.width - 20, stein1.height - 90);
+        stein1.body.setOffset(10, 10);
+
+        stein2.body.setSize(stein2.width - 20, stein2.height - 110);
+        stein2.body.setOffset(10, 10);
+
+        stein3.body.setSize(stein3.width - 20, stein3.height - 100);
+        stein3.body.setOffset(10, 5);
+
+        drva.body.setSize(drva.width / 2 - 60, drva.height - 110);
+        drva.body.setOffset(50, 10);
+
+        player = this.physics.add.sprite(100, 450, "dude").setScale(1);
+
+        player.setBounce(0.2);
+        player.setCollideWorldBounds(true);
+
+        player.body.setGravityY(600);
+
+        this.physics.add.collider(player, platforms);
+
+        cursors = this.input.keyboard.createCursorKeys();
+
+        this.anims.create({
+          key: "left",
+          frames: this.anims.generateFrameNumbers("dude", { start: 0, end: 3 }),
+          frameRate: 10,
+          repeat: -1,
+        });
+
+        this.anims.create({
+          key: "turn",
+          frames: [{ key: "dude", frame: 4 }],
+          frameRate: 20,
+        });
+
+        this.anims.create({
+          key: "right",
+          frames: this.anims.generateFrameNumbers("dude", { start: 5, end: 8 }),
+          frameRate: 10,
+          repeat: -1,
+        });
+
+        // Festplatten (stars)
+        stars = this.physics.add.group();
+        createItems(stars, "star", 1); // Create 5 stars
+
+        // USBs
+        usbs = this.physics.add.group();
+        createItems(usbs, "usb", 30); // Create 10 USBs
+
+        // SSDs
+        ssds = this.physics.add.group();
+        createItems(ssds, "ssd", 6); // Create 7 SSDs
+
+        this.physics.add.collider(stars, platforms);
+        this.physics.add.collider(usbs, platforms);
+        this.physics.add.collider(ssds, platforms);
+
+        this.physics.add.overlap(player, stars, collectItem, null, this);
+        this.physics.add.overlap(player, usbs, collectItem, null, this);
+        this.physics.add.overlap(player, ssds, collectItem, null, this);
+
+        function createItems(group, key, count) {
+          for (let i = 0; i < count; i++) {
+            let x = Phaser.Math.Between(50, 1100);
+            let y = Phaser.Math.Between(0, 200);
+            let item = group.create(x, y, key);
+            item.setBounceY(Phaser.Math.FloatBetween(0.1, 0.9));
+          }
+        }
+
+        // Collect Item Function
+        function collectItem(player, item) {
+          item.disableBody(true, true);
+
+          // Update score based on item type
+          if (item.texture.key === "star") {
+            score += 1024;
+          } else if (item.texture.key === "usb") {
+            score += 16; // Example: USBs give 16 points
+          } else if (item.texture.key === "ssd") {
+            score += 256; // Example: SSDs give 256 points
+          }
+
+          scoreTextDEC.setText("DEC: " + score + " GB");
+          scoreTextBIN.setText("BIN: " + score.toString(2) + " GB");
+          scoreTextHEX.setText(
+            "HEX: " + score.toString(16).toUpperCase() + " GB"
+          );
+
+          // Check if all items are collected
+          if (
+            stars.countActive(true) === 0 &&
+            usbs.countActive(true) === 0 &&
+            ssds.countActive(true) === 0
+          ) {
+            // Reset stars
+            createItems(stars, "star", 1);
+
+            // Reset USBs
+            createItems(usbs, "usb", 30);
+
+            // Reset SSDs
+            createItems(ssds, "ssd", 6);
+
+            // Create a new bomb
+            var x =
+              player.x < 400
+                ? Phaser.Math.Between(400, 800)
+                : Phaser.Math.Between(0, 400);
+
+            var bomb = bombs.create(x, 16, "bomb");
+            bomb.setBounce(1);
+            bomb.setCollideWorldBounds(true);
+            bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+          }
+        }
+
+        scoreTextDEC = this.add.text(16, 16, "DEC: 0 GB", {
+          fontSize: "32px",
+          fill: "#000",
+        });
+        scoreTextBIN = this.add.text(16, 45, "BIN: 0 GB", {
+          fontSize: "32px",
+          fill: "#000",
+        });
+        scoreTextHEX = this.add.text(16, 74, "HEX: 0 GB", {
+          fontSize: "32px",
+          fill: "#000",
+        });
+
+        bombs = this.physics.add.group();
+
+        this.physics.add.collider(bombs, platforms);
+
+        this.physics.add.collider(player, bombs, hitBomb, null, this);
+
+        function hitBomb(player, bomb) {
+          this.physics.pause();
+
+          player.setTint(0xff0000);
+
+          player.anims.play("turn");
+
+          gameOver = true;
+        }
+      }
+
+      function update() {
+        if (cursors.left.isDown) {
+          player.setVelocityX(-300);
+
+          player.anims.play("left", true);
+        } else if (cursors.right.isDown) {
+          player.setVelocityX(300);
+
+          player.anims.play("right", true);
+        } else {
+          player.setVelocityX(0);
+
+          player.anims.play("turn");
+        }
+
+        if (cursors.up.isDown && player.body.touching.down) {
+          player.setVelocityY(-630);
+        }
+      }
+    </script>
+  </body>
+</html>
